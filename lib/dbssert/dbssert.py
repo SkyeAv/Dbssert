@@ -205,7 +205,7 @@ CLI: object = typer.Typer(pretty_exceptions_show_locals=False)
 def main(
   synonyms: list[Path] = typer.Option(..., "-s", "--synonyms", help="synonyms.txt.xz"),
   classes: list[Path] = typer.Option(..., "-c", "--classes", help="classes.ndjson.xz"),
-  export: Path = typer.Option(Path("./dbssert.duckdb"), "-c", "--classes", help="name.duckdb")
+  export: Path = typer.Option(Path("./dbssert.duckdb"), "-e", "--export", help="name.duckdb")
 ) -> None:
   try:
     with duckdb.connect(export) as conn:
