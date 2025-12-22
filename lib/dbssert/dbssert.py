@@ -117,7 +117,8 @@ def build(
           category_id: int = len(categories)
           categories.update({category: category_id})
 
-        taxon: int = r["taxa"][0][10:] if "taxa" in r else 0
+        taxon: Union[int, str] = r["taxa"] if "taxa" in r else "0"
+        taxon = int(taxon[0][10:]) if "NCBITaxon:" in taxon else int(taxon)
 
         zero: list[str] = [clean(a).lower() for a in aliases]
         zero = list(filter(remove_problematic, zero))
