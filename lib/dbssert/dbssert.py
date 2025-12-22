@@ -52,7 +52,7 @@ def index(conn: object) -> None:
   indexes: list[str] = [
     "CREATE INDEX CURIE_SYNONYMS ON SYNONYMS (SYNONYM);",
     "CREATE INDEX CATEGORY_NAMES ON CATEGORIES (CATEGORY_NAME);",
-    "CREATE INDEX CURIE_TAXON ON CURIES (TAXON);"
+    "CREATE INDEX CURIE_TAXON ON CURIES (TAXON_ID);"
   ]
   for op in indexes:
     conn.execute(op)
@@ -117,8 +117,9 @@ def build(
           category_id: int = len(categories)
           categories.update({category: category_id})
 
-        taxon: Union[int, str] = r["taxa"] if "taxa" in r else "0"
-        taxon = int(taxon[0][10:]) if "NCBITaxon:" in taxon else int(taxon)
+        taxon: Union[int, str] = r.get("taxa", [])
+        taxon = str(taxon[0]) if taxon else "0"
+        taxon = int(taxon[10:]) if "NCBITaxon:" in taxon else int(taxon)
 
         zero: list[str] = [clean(a).lower() for a in aliases]
         zero = list(filter(remove_problematic, zero))
@@ -154,22 +155,22 @@ def build(
 
         if ge(len(synonym_batch), max_batch):
           bulk_insert(conn, synonym_batch, "SYNONYMS")
-          synonym_batch = {}
+          synonym_batch = []
 
           bulk_insert(conn, curie_batch, "CURIES")
-          curie_batch = {}
+          curie_batch = []
 
           logger.debug(f"02 | ADDED {idx} TO DUCKDB")
 
       # * If anything is left over
       bulk_insert(conn, synonym_batch, "SYNONYMS")
-      synonym_batch = {}
+      synonym_batch = []
 
       bulk_insert(conn, curie_batch, "CURIES")
-      curie_batch = {}
+      curie_batch = []
 
   # * Add categories
-  bulk_insert(conn, [{"CATEGORY_ID": v, "CATEGORY_NAME": k} for k, v in categories], "CATEGORIES")
+  bulk_insert(conn, [{"CATEGORY_ID": v, "CATEGORY_NAME": k} for k, v in categories.items()], "CATEGORIES")
 
   # * Add sources
   bulk_insert(
