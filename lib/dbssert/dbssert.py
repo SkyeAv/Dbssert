@@ -95,9 +95,10 @@ def build(
 
   for p in synonyms:
     with lzma.open(p, "rb") as f:
-      logger.warning(f"01 | STARTED ADDING {p}")
+      logger.warning(f"02 | STARTED ADDING {p}")
 
       for line in f:
+        line: object = line.strip()
 
         if not line:
           continue
@@ -164,7 +165,7 @@ def build(
           bulk_insert(conn, curie_batch, "CURIES")
           curie_batch = []
 
-          logger.debug(f"02 | ADDED {idx} TO DUCKDB")
+          logger.debug(f"03 | ADDED {idx} TO DUCKDB")
 
       # * If anything is left over
       bulk_insert(conn, synonym_batch, "SYNONYMS")
@@ -172,6 +173,8 @@ def build(
 
       bulk_insert(conn, curie_batch, "CURIES")
       curie_batch = []
+
+      logger.debug(f"04 | ADDED {idx} TO DUCKDB")
 
   # * Add categories
   bulk_insert(conn, [{"CATEGORY_ID": v, "CATEGORY_NAME": k} for k, v in categories.items()], "CATEGORIES")
@@ -196,7 +199,10 @@ def lookup(classes: list[Path]) -> dict[str, list[str]]:
 
   for p in classes:
     with lzma.open(p, "rb") as f:
+      logger.warning(f"01 | STARTED MAPPING {p}")
+
       for line in f:
+        line: object = line.strip()
 
         if not line:
           continue
