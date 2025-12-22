@@ -98,6 +98,10 @@ def build(
       logger.warning(f"01 | STARTED ADDING {p}")
 
       for line in f:
+
+        if not line:
+          continue
+
         r: object = orjson.loads(line)
 
         curie: str = r["curie"]
@@ -193,10 +197,17 @@ def lookup(classes: list[Path]) -> dict[str, list[str]]:
   for p in classes:
     with lzma.open(p, "rb") as f:
       for line in f:
+
+        if not line:
+          continue
+
         r: object = orjson.loads(line)
+
         curie, *aliases = r["equivalent_identifiers"]
+
         cleaned: list[str] = [clean(a) for a in aliases] if aliases else []
         cleaned = list(filter(remove_problematic, cleaned))
+
         table.update({curie: cleaned})
 
   return table
