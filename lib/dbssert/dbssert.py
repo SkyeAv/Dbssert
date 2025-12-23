@@ -92,7 +92,8 @@ def build(
   synonyms: list[Path],
   conn: object,
   table: dict[str, tuple[str]],
-  max_batch: int = 50_000_000
+  max_batch: int = 50_000_000,
+  log: float = 2_000_000
 ) -> None:
   categories: dict[str, int] = {}
   curie_batch: list[dict[str, dict[str, Union[str, int]]]] = []
@@ -101,7 +102,7 @@ def build(
 
   for p in synonyms:
     with lzma.open(p, "rb") as f:
-      logger.warning(f"02 | {p} | STARTED ADDING")
+      logger.warning(f"04 | {p} | STARTED ADDING")
 
       for line in f:
         line: object = line.strip()
@@ -167,6 +168,9 @@ def build(
         synonym_batch.extend(synonym_data)
         idx += 1
 
+        if eq((idx % log), 0) and ne(idx(idx % max_batch), 0):
+          logger.debug(f"05 | {p} | PROCESSED {idx} TO ADD")
+
         if ge(len(synonym_batch), max_batch):
           bulk_insert(conn, synonym_batch, "SYNONYMS")
           synonym_batch = []
@@ -174,7 +178,7 @@ def build(
           bulk_insert(conn, curie_batch, "CURIES")
           curie_batch = []
 
-          logger.debug(f"03 | {p} | ADDED {idx} TO DUCKDB")
+          logger.debug(f"06 | {p} | ADDED {idx} TO DUCKDB")
 
       # * If anything is left over
       bulk_insert(conn, synonym_batch, "SYNONYMS")
@@ -183,7 +187,7 @@ def build(
       bulk_insert(conn, curie_batch, "CURIES")
       curie_batch = []
 
-      logger.debug(f"04 | {p} | ADDED {idx} TO DUCKDB")
+      logger.debug(f"07 | {p} | ADDED {idx} TO DUCKDB")
 
   # * Add categories
   bulk_insert(conn, [{"CATEGORY_ID": v, "CATEGORY_NAME": k} for k, v in categories.items()], "CATEGORIES")
@@ -203,7 +207,7 @@ def build(
     "SOURCES"
   )
 
-def lookup(classes: list[Path], logging: float = 2_000_000) -> dict[str, tuple[str]]:
+def lookup(classes: list[Path], log: float = 2_000_000) -> dict[str, tuple[str]]:
   table: dict[str, tuple[str]] = {}
   for p in classes:
 
@@ -224,7 +228,7 @@ def lookup(classes: list[Path], logging: float = 2_000_000) -> dict[str, tuple[s
 
         table.update({curie: cleaned})
 
-        if eq((idx % logging), 0):
+        if eq((idx % log), 0):
           logger.debug(f"02 | {p} | MAPPED {idx}")
 
     logger.debug(f"03 | {p} | MAPPED {idx}")
