@@ -10,7 +10,10 @@ import orjson
 import duckdb
 import typer
 import lzma
+import sys
+import re
 
+logger.remove()
 logger.add(Path("./dbssert.log"))
 
 def init(conn: object) -> None:
@@ -67,26 +70,29 @@ def remove_problematic(x: str) -> bool:
 
 def clean(x: str) -> str:
   cleaned: str = x.strip()
-  if ne(cleaned, x):
+  if not cleaned:
+    return sys.intern("")
+  elif ne(cleaned, x):
     return clean(cleaned)
   elif eq(x[0], "\'") and eq(x[-1], "\'"):
     return clean(x[1:-1])
   elif eq(x[0], '"') and eq(x[-1], '"'):
     return clean(x[1:-1])
   else:
-    return x
+    return sys.intern(x)
 
 def bulk_insert(conn: object, batch: list[dict[str, dict[str, Union[str, list[str], int]]]], table: str) -> None:
   arrow: object = pa.Table.from_pylist(batch)
   # ! Somehow DuckDB picks up on the python variable...
   conn.execute(f"INSERT INTO {table} SELECT * FROM arrow")
 
+REGEX: object = re.compile(r"\W+")
+
 def build(
   synonyms: list[Path],
   conn: object,
-  table: dict[str, list[str]],
-  regex: str = r"\W+",
-  max_batch: int = 2_000_000
+  table: dict[str, tuple[str]],
+  max_batch: int = 50_000_000
 ) -> None:
   categories: dict[str, int] = {}
   curie_batch: list[dict[str, dict[str, Union[str, int]]]] = []
@@ -95,7 +101,7 @@ def build(
 
   for p in synonyms:
     with lzma.open(p, "rb") as f:
-      logger.warning(f"02 | STARTED ADDING {p}")
+      logger.warning(f"02 | {p} | STARTED ADDING")
 
       for line in f:
         line: object = line.strip()
@@ -106,11 +112,15 @@ def build(
         r: object = orjson.loads(line)
 
         curie: str = r["curie"]
+        curie = sys.intern(curie)
+
         aliases: list[str] = r["names"]
         aliases.append(curie)
 
         if curie in table:
           aliases.extend(table[curie])
+
+        aliases = list(filter(remove_problematic, aliases))
 
         preferred: str = r["preferred_name"]
         preferred = clean(preferred)
@@ -126,9 +136,8 @@ def build(
         taxon = str(taxon[0]) if taxon else "0"
         taxon = int(taxon[10:]) if "NCBITaxon:" in taxon else int(taxon)
 
-        zero: list[str] = [clean(a).lower() for a in aliases]
-        zero = list(filter(remove_problematic, zero))
-        one: list[str] = [a.replace(regex, "") for a in aliases]
+        zero: list[str] = list(set(clean(a).lower() for a in aliases))
+        one: list[str] = list(set(REGEX.sub("", a) for a in zero))
 
         curie_data: dict[str, dict[str, Union[str, int]]] = {
             "CURIE_ID": idx,
@@ -165,7 +174,7 @@ def build(
           bulk_insert(conn, curie_batch, "CURIES")
           curie_batch = []
 
-          logger.debug(f"03 | ADDED {idx} TO DUCKDB")
+          logger.debug(f"03 | {p} | ADDED {idx} TO DUCKDB")
 
       # * If anything is left over
       bulk_insert(conn, synonym_batch, "SYNONYMS")
@@ -174,7 +183,7 @@ def build(
       bulk_insert(conn, curie_batch, "CURIES")
       curie_batch = []
 
-      logger.debug(f"04 | ADDED {idx} TO DUCKDB")
+      logger.debug(f"04 | {p} | ADDED {idx} TO DUCKDB")
 
   # * Add categories
   bulk_insert(conn, [{"CATEGORY_ID": v, "CATEGORY_NAME": k} for k, v in categories.items()], "CATEGORIES")
@@ -189,33 +198,36 @@ def build(
         "SOURCE_VERSION": 2025.07,
         "NLP_LEVEL": i
       } 
-      for i in range(1)
+      for i in range(2)
     ],
     "SOURCES"
   )
 
-def lookup(classes: list[Path]) -> dict[str, list[str]]:
-  table: dict[str, list[str]] = {}
-
+def lookup(classes: list[Path], logging: float = 2_000_000) -> dict[str, tuple[str]]:
+  table: dict[str, tuple[str]] = {}
   for p in classes:
-    with lzma.open(p, "rb") as f:
-      logger.warning(f"01 | STARTED MAPPING {p}")
 
-      for line in f:
+    with lzma.open(p, "rb") as f:
+      logger.warning(f"01 | {p} | STARTED MAPPING")
+
+      for idx, line in enumerate(f, start=1):
         line: object = line.strip()
 
         if not line:
           continue
 
         r: object = orjson.loads(line)
-
         curie, *aliases = r["equivalent_identifiers"]
+        curie: str = sys.intern(curie)
 
-        cleaned: list[str] = [clean(a) for a in aliases] if aliases else []
-        cleaned = list(filter(remove_problematic, cleaned))
+        cleaned: tuple[str] = tuple(set(filter(remove_problematic, (clean(a) for a in aliases)))) if aliases else tuple()
 
         table.update({curie: cleaned})
 
+        if eq((idx % logging), 0):
+          logger.debug(f"02 | {p} | MAPPED {idx}")
+
+    logger.debug(f"03 | {p} | MAPPED {idx}")
   return table
 
 CLI: object = typer.Typer(pretty_exceptions_show_locals=False)
@@ -229,7 +241,7 @@ def main(
   try:
     with duckdb.connect(export) as conn:
       init(conn)
-      table: dict[str, list[str]] = lookup(classes)
+      table: list[dict[str, tuple[str]]] = lookup(classes)
       build(synonyms, conn, table)
       index(conn)
 
