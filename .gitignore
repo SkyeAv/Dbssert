@@ -3,3 +3,4 @@
 *.log
 *.duckdb
 *.wal
+*.sh
