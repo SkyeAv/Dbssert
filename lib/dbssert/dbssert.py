@@ -92,7 +92,7 @@ def build(
   synonyms: list[Path],
   conn: object,
   table: dict[str, tuple[str]],
-  max_batch: int = 50_000_000,
+  max_batch: int = 100_000_000,
   log: float = 2_000_000
 ) -> None:
   categories: dict[str, int] = {}
@@ -168,7 +168,7 @@ def build(
         synonym_batch.extend(synonym_data)
         idx += 1
 
-        if eq((idx % log), 0) and ne(idx(idx % max_batch), 0):
+        if eq((idx % log), 0) and ne((idx % max_batch), 0):
           logger.debug(f"05 | {p} | PROCESSED {idx} TO ADD")
 
         if ge(len(synonym_batch), max_batch):
