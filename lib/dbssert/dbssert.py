@@ -92,8 +92,8 @@ def build(
   synonyms: list[Path],
   conn: object,
   table: dict[str, tuple[str]],
-  max_batch: int = 100_000_000,
-  log: float = 2_000_000
+  max_batch: int = 50_000_000,
+  log: float = 5_000_000
 ) -> None:
   categories: dict[str, int] = {}
   curie_batch: list[dict[str, dict[str, Union[str, int]]]] = []
@@ -207,7 +207,7 @@ def build(
     "SOURCES"
   )
 
-def lookup(classes: list[Path], log: float = 2_000_000) -> dict[str, tuple[str]]:
+def lookup(classes: list[Path], log: float = 5_000_000) -> dict[str, tuple[str]]:
   table: dict[str, tuple[str]] = {}
   for p in classes:
 
