@@ -201,7 +201,7 @@ def build(
         "SOURCE_NAME": "BABEL",
         "SOURCE_VERSION": 2025.07,
         "NLP_LEVEL": i
-      } 
+      }
       for i in range(2)
     ],
     "SOURCES"

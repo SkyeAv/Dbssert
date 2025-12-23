@@ -16,16 +16,7 @@ let
       duckdb
       orjson
       typer
-    ]) ++ (with pkgs; [
-      chromium
     ]);
-    nativeBuildInputs = [
-      pkgs.makeWrapper
-    ];
-    makeWrapperArgs = [
-      "--set CHROMIUM_PATH ${pkgs.chromium}/bin/chromium"
-      "--set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD 1"
-    ];
     doCheck = false;
   };
 in {
