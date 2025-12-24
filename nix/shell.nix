@@ -11,6 +11,7 @@ let
       wheel
     ]);
     propagatedBuildInputs = (with py; [
+      backports-zstd
       pyarrow
       loguru
       duckdb

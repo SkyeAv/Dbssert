@@ -1,4 +1,5 @@
 from __future__ import annotations
+from backports import zstd
 from loguru import logger
 from pathlib import Path
 from typing import Union
@@ -9,8 +10,6 @@ import pyarrow as pa
 import orjson
 import duckdb
 import typer
-import lzma
-import sys
 import re
 
 logger.remove()
@@ -22,7 +21,7 @@ def init(conn: object) -> None:
 CREATE TABLE IF NOT EXISTS SOURCES (
   SOURCE_ID INTEGER PRIMARY KEY,
   SOURCE_NAME VARCHAR,
-  SOURCE_VERSION FLOAT,
+  SOURCE_VERSION VARCHAR,
   NLP_LEVEL INTEGER
 );
     """,
@@ -71,7 +70,7 @@ def remove_problematic(x: str) -> bool:
 def clean(x: str) -> str:
   cleaned: str = x.strip()
   if not cleaned:
-    return sys.intern("")
+    return ""
   elif ne(cleaned, x):
     return clean(cleaned)
   elif eq(x[0], "\'") and eq(x[-1], "\'"):
@@ -79,7 +78,7 @@ def clean(x: str) -> str:
   elif eq(x[0], '"') and eq(x[-1], '"'):
     return clean(x[1:-1])
   else:
-    return sys.intern(x)
+    return x
 
 def bulk_insert(conn: object, batch: list[dict[str, dict[str, Union[str, list[str], int]]]], table: str) -> None:
   arrow: object = pa.Table.from_pylist(batch)
@@ -101,7 +100,7 @@ def build(
   idx: int = 0
 
   for p in synonyms:
-    with lzma.open(p, "rb") as f:
+    with zstd.open(p, "rb") as f:
       logger.warning(f"04 | {p} | STARTED ADDING")
 
       for line in f:
@@ -113,7 +112,6 @@ def build(
         r: object = orjson.loads(line)
 
         curie: str = r["curie"]
-        curie = sys.intern(curie)
 
         aliases: list[str] = r["names"]
         aliases.append(curie)
@@ -199,7 +197,7 @@ def build(
       {
         "SOURCE_ID": i,
         "SOURCE_NAME": "BABEL",
-        "SOURCE_VERSION": 2025.07,
+        "SOURCE_VERSION": "2025-07",
         "NLP_LEVEL": i
       }
       for i in range(2)
@@ -211,7 +209,7 @@ def lookup(classes: list[Path], log: float = 5_000_000) -> dict[str, tuple[str]]
   table: dict[str, tuple[str]] = {}
   for p in classes:
 
-    with lzma.open(p, "rb") as f:
+    with zstd.open(p, "rb") as f:
       logger.warning(f"01 | {p} | STARTED MAPPING")
 
       for idx, line in enumerate(f, start=1):
@@ -222,7 +220,6 @@ def lookup(classes: list[Path], log: float = 5_000_000) -> dict[str, tuple[str]]
 
         r: object = orjson.loads(line)
         curie, *aliases = r["equivalent_identifiers"]
-        curie: str = sys.intern(curie)
 
         cleaned: tuple[str] = tuple(set(filter(remove_problematic, (clean(a) for a in aliases)))) if aliases else tuple()
 
@@ -242,6 +239,7 @@ def main(
   classes: list[Path] = typer.Option(..., "-c", "--classes", help="classes.ndjson.xz"),
   export: Path = typer.Option(Path("./dbssert.duckdb"), "-e", "--export", help="name.duckdb")
 ) -> None:
+  """Builds The DuckDB Backed Dbssert From Raw BABEL Files"""
   try:
     with duckdb.connect(export) as conn:
       init(conn)
