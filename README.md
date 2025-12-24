@@ -18,8 +18,6 @@ Use Exposed CLI
 dbssert-cli --help
 ```
 
-**Detailed Documentation Coming After Beta**
-
 ## Contributors
 
 [Skye Lane Goetz](mailto:sgoetz@isbscience.org)
