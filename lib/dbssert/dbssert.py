@@ -46,7 +46,14 @@ CREATE TABLE IF NOT EXISTS SYNONYMS (
   SOURCE_ID INTEGER,
   SYNONYM VARCHAR
 );
-    """]
+    """,
+    """\
+SET memory_limit = '80GB';
+    """,
+    """\
+SET preserve_insertion_order = false;
+    """
+  ]
   for op in schemas:
     conn.execute(op)
 
@@ -57,10 +64,15 @@ def index(conn: object) -> None:
     "CREATE INDEX CURIE_TAXON ON CURIES (TAXON_ID);"
   ]
   for op in indexes:
+    logger.success(f"08 | ADDED INDEX | {op}")
     conn.execute(op)
 
 def remove_problematic(x: str) -> bool:
-  if "INCHIKEY" in x:
+  if not x:
+    return False
+  elif "[BAD-TOKEN]" in x:
+    return False
+  elif "INCHIKEY" in x:
     return False
   elif eq(x, "uncharacterized protein") or eq(x, "hypothetical protein"):
     return False
@@ -69,8 +81,8 @@ def remove_problematic(x: str) -> bool:
 
 def clean(x: str) -> str:
   cleaned: str = x.strip()
-  if not cleaned:
-    return ""
+  if not x:
+    return "[BAD-TOKEN]"
   elif ne(cleaned, x):
     return clean(cleaned)
   elif eq(x[0], "\'") and eq(x[-1], "\'"):
@@ -91,8 +103,8 @@ def build(
   synonyms: list[Path],
   conn: object,
   table: dict[str, tuple[str]],
-  max_batch: int = 50_000_000,
-  log: float = 5_000_000
+  max_batch: int = 10_000_000,
+  log: float = 1_000_000
 ) -> None:
   categories: dict[str, int] = {}
   curie_batch: list[dict[str, dict[str, Union[str, int]]]] = []
@@ -101,7 +113,7 @@ def build(
 
   for p in synonyms:
     with zstd.open(p, "rb") as f:
-      logger.warning(f"04 | {p} | STARTED ADDING")
+      logger.success(f"04 | {p} | STARTED ADDING")
 
       for line in f:
         line: object = line.strip()
@@ -135,8 +147,8 @@ def build(
         taxon = str(taxon[0]) if taxon else "0"
         taxon = int(taxon[10:]) if "NCBITaxon:" in taxon else int(taxon)
 
-        zero: list[str] = list(set(clean(a).lower() for a in aliases))
-        one: list[str] = list(set(REGEX.sub("", a) for a in zero))
+        zero: list[str] = list(set(clean(a).lower() for a in aliases if a))
+        one: list[str] = list(set(REGEX.sub("", a) for a in zero if a))
 
         curie_data: dict[str, dict[str, Union[str, int]]] = {
             "CURIE_ID": idx,
@@ -152,14 +164,14 @@ def build(
             "SOURCE_ID": 0,
             "SYNONYM": x
           }
-          for x in zero
+          for x in zero if x
         ] + [
           {
             "CURIE_ID": idx,
             "SOURCE_ID": 1,
             "SYNONYM": x
           }
-          for x in one
+          for x in one if x
         ]
 
         curie_batch.append(curie_data)
@@ -167,7 +179,7 @@ def build(
         idx += 1
 
         if eq((idx % log), 0) and ne((idx % max_batch), 0):
-          logger.debug(f"05 | {p} | PROCESSED {idx} TO ADD")
+          logger.info(f"05 | {p} | PROCESSED {idx} TO ADD")
 
         if ge(len(synonym_batch), max_batch):
           bulk_insert(conn, synonym_batch, "SYNONYMS")
@@ -176,7 +188,7 @@ def build(
           bulk_insert(conn, curie_batch, "CURIES")
           curie_batch = []
 
-          logger.debug(f"06 | {p} | ADDED {idx} TO DUCKDB")
+          logger.info(f"06 | {p} | ADDED {idx} TO DUCKDB")
 
       # * If anything is left over
       bulk_insert(conn, synonym_batch, "SYNONYMS")
@@ -185,7 +197,7 @@ def build(
       bulk_insert(conn, curie_batch, "CURIES")
       curie_batch = []
 
-      logger.debug(f"07 | {p} | ADDED {idx} TO DUCKDB")
+      logger.info(f"07 | {p} | ADDED {idx} TO DUCKDB")
 
   # * Add categories
   bulk_insert(conn, [{"CATEGORY_ID": v, "CATEGORY_NAME": k} for k, v in categories.items()], "CATEGORIES")
@@ -205,12 +217,12 @@ def build(
     "SOURCES"
   )
 
-def lookup(classes: list[Path], log: float = 5_000_000) -> dict[str, tuple[str]]:
+def lookup(classes: list[Path], log: float = 1_000_000) -> dict[str, tuple[str]]:
   table: dict[str, tuple[str]] = {}
   for p in classes:
 
     with zstd.open(p, "rb") as f:
-      logger.warning(f"01 | {p} | STARTED MAPPING")
+      logger.success(f"01 | {p} | STARTED MAPPING")
 
       for idx, line in enumerate(f, start=1):
         line: object = line.strip()
@@ -221,14 +233,14 @@ def lookup(classes: list[Path], log: float = 5_000_000) -> dict[str, tuple[str]]
         r: object = orjson.loads(line)
         curie, *aliases = r["equivalent_identifiers"]
 
-        cleaned: tuple[str] = tuple(set(filter(remove_problematic, (clean(a) for a in aliases)))) if aliases else tuple()
+        cleaned: tuple[str] = tuple(set(filter(remove_problematic, (clean(a) for a in aliases if a)))) if aliases else tuple()
 
         table.update({curie: cleaned})
 
         if eq((idx % log), 0):
-          logger.debug(f"02 | {p} | MAPPED {idx}")
+          logger.info(f"02 | {p} | MAPPED {idx}")
 
-    logger.debug(f"03 | {p} | MAPPED {idx}")
+    logger.info(f"03 | {p} | MAPPED {idx}")
   return table
 
 CLI: object = typer.Typer(pretty_exceptions_show_locals=False)

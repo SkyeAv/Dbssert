@@ -25,6 +25,8 @@ in {
     packages = (with py; [
       python
       flake8
+    ]) ++ (with pkgs; [
+      duckdb
     ]) ++ ([
       dbssert
     ]);
