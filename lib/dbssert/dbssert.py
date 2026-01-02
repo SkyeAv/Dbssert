@@ -122,7 +122,6 @@ def build(
           continue
 
         r: object = orjson.loads(line)
-
         curie: str = r["curie"]
 
         if not remove_problematic(curie):
@@ -152,6 +151,7 @@ def build(
 
         zero: list[str] = list(set(clean(a).lower() for a in aliases if a))
         one: list[str] = list(set(REGEX.sub("", a) for a in zero if a))
+        one = [a for a in one if a not in zero]
 
         curie_data: dict[str, dict[str, Union[str, int]]] = {
           "CURIE_ID": idx,
@@ -240,7 +240,6 @@ def lookup(classes: list[Path], log: float = 1_000_000) -> dict[str, tuple[str]]
           continue
 
         cleaned: tuple[str] = tuple(set(filter(remove_problematic, (clean(a) for a in aliases if a)))) if aliases else tuple()
-
         table.update({curie: cleaned})
 
         if eq((idx % log), 0):
