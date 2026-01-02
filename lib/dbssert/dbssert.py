@@ -125,6 +125,9 @@ def build(
 
         curie: str = r["curie"]
 
+        if not remove_problematic(curie):
+          continue
+
         aliases: list[str] = r["names"]
         aliases.append(curie)
 
@@ -151,11 +154,11 @@ def build(
         one: list[str] = list(set(REGEX.sub("", a) for a in zero if a))
 
         curie_data: dict[str, dict[str, Union[str, int]]] = {
-            "CURIE_ID": idx,
-            "CURIE": curie,
-            "PREFERRED_NAME": preferred,
-            "CATEGORY_ID": category_id,
-            "TAXON_ID": taxon
+          "CURIE_ID": idx,
+          "CURIE": curie,
+          "PREFERRED_NAME": preferred,
+          "CATEGORY_ID": category_id,
+          "TAXON_ID": taxon
         }
 
         synonym_data: list[dict[str, dict[str, Union[str, list[str], int]]]] = [
@@ -232,6 +235,9 @@ def lookup(classes: list[Path], log: float = 1_000_000) -> dict[str, tuple[str]]
 
         r: object = orjson.loads(line)
         curie, *aliases = r["equivalent_identifiers"]
+
+        if not remove_problematic(curie):
+          continue
 
         cleaned: tuple[str] = tuple(set(filter(remove_problematic, (clean(a) for a in aliases if a)))) if aliases else tuple()
 
