@@ -1,5 +1,5 @@
 {
-  description = "unnamed (1.0.0)";
+  description = "DBSSERT (1.0.0)";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
