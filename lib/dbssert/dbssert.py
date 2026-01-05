@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tempfile import gettempdir
 from backports import zstd
 from loguru import logger
 from pathlib import Path
@@ -11,6 +12,8 @@ import orjson
 import duckdb
 import typer
 import re
+
+TMP: Path = gettempdir()
 
 logger.remove()
 logger.add(Path("./dbssert.log"))
@@ -48,7 +51,17 @@ CREATE TABLE IF NOT EXISTS SYNONYMS (
 );
     """,
     """\
-SET memory_limit = '80GB';
+CREATE TABLE IF NOT EXISTS SYNONYMS_SORTED (
+  CURIE_ID INTEGER,
+  SOURCE_ID INTEGER,
+  SYNONYM VARCHAR
+);
+    """,
+    """\
+SET memory_limit = '150GB';
+    """,
+    f"""\
+SET temp_directory = '{TMP}';
     """,
     """\
 SET preserve_insertion_order = false;
@@ -59,13 +72,18 @@ SET preserve_insertion_order = false;
 
 def index(conn: object) -> None:
   indexes: list[str] = [
+    "SET threads = 4;",
+    "INSERT INTO SYNONYMS_SORTED SELECT * FROM SYNONYMS ORDER BY SYNONYM;",
+    "DROP TABLE SYNONYMS;",
+    "ALTER TABLE SYNONYMS_SORTED RENAME TO SYNONYMS;"
     "CREATE INDEX CURIE_SYNONYMS ON SYNONYMS (SYNONYM);",
     "CREATE INDEX CATEGORY_NAMES ON CATEGORIES (CATEGORY_NAME);",
     "CREATE INDEX CURIE_TAXON ON CURIES (TAXON_ID);"
+    "SET threads = 0;"
   ]
   for op in indexes:
-    logger.success(f"08 | ADDED INDEX | {op}")
     conn.execute(op)
+    logger.success(f"08 | FINISHED INDEX OPERATION | {op}")
 
 def remove_problematic(x: str) -> bool:
   if not x:
