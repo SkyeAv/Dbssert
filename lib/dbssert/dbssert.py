@@ -104,12 +104,12 @@ def clean(x: str) -> str:
     return "[BAD-TOKEN]"
   elif ne(cleaned, x):
     return clean(cleaned)
-  elif eq(x[0], "\'") and eq(x[-1], "\'"):
-    return clean(x[1:-1])
-  elif eq(x[0], '"') and eq(x[-1], '"'):
-    return clean(x[1:-1])
+  elif eq(cleaned[0], "\'") and eq(cleaned[-1], "\'"):
+    return clean(cleaned[1:-1])
+  elif eq(cleaned[0], '"') and eq(cleaned[-1], '"'):
+    return clean(cleaned[1:-1])
   else:
-    return x
+    return cleaned
 
 def bulk_insert(conn: object, batch: list[dict[str, dict[str, Union[str, list[str], int]]]], table: str) -> None:
   arrow: object = pa.Table.from_pylist(batch)
