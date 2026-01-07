@@ -104,7 +104,9 @@ def clean(x: str) -> str:
     return "[BAD-TOKEN]"
   elif ne(cleaned, x):
     return clean(cleaned)
-  elif eq(cleaned[0], "\'") and eq(cleaned[-1], "\'"):
+  elif eq(cleaned[:2], "''") or eq(cleaned[:2], '""'):
+    return clean(cleaned[2:])
+  elif eq(cleaned[0], "'") and eq(cleaned[-1], "'"):
     return clean(cleaned[1:-1])
   elif eq(cleaned[0], '"') and eq(cleaned[-1], '"'):
     return clean(cleaned[1:-1])
